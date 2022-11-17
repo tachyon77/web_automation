@@ -682,7 +682,7 @@ class ComputeLossOTA:
                 all_gj.append(gj)
                 all_gi.append(gi)
                 all_anch.append(anch[i][idx])
-                from_which_layer.append(torch.ones(size=(len(b),)) * i)
+                from_which_layer.append(torch.ones(size=(len(b),), device=targets.device) * i)
                 
                 fg_pred = pi[b, a, gj, gi]                
                 p_obj.append(fg_pred[:, 4:5])
@@ -739,7 +739,7 @@ class ComputeLossOTA:
                 + 3.0 * pair_wise_iou_loss
             )
 
-            matching_matrix = torch.zeros_like(cost)
+            matching_matrix = torch.zeros_like(cost, device=targets.device)
 
             for gt_idx in range(num_gt):
                 _, pos_idx = torch.topk(

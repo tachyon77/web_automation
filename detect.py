@@ -1,6 +1,7 @@
 import argparse
 import time
 from pathlib import Path
+import os
 
 import cv2
 import torch
@@ -8,12 +9,35 @@ import torch.backends.cudnn as cudnn
 from numpy import random
 import numpy as np
 
+from google.cloud import vision
+import io
+
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
 from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
+
+
+def detect_ocr(path):
+    """Detects text in the file."""
+    from google.cloud import vision
+    import io
+    client = vision.ImageAnnotatorClient()
+
+    with io.open(path, 'rb') as image_file:
+        content = image_file.read()
+
+    image = vision.Image(content=content)
+
+    response = client.text_detection(image=image)
+
+    if response.error.message:
+        return ""
+
+    texts = response.text_annotations  
+    return texts[0].description if texts else ""
 
 
 def detect(save_img=False):
@@ -109,6 +133,9 @@ def detect(save_img=False):
             save_path = str(save_dir / p.name)  # img.jpg
             txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+
+            print(f"Total detections: {len(det)}")
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
@@ -118,8 +145,28 @@ def detect(save_img=False):
                     n = (det[:, -1] == c).sum()  # detections per class
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
+
+                detected_text_list = []
+                id = 0
+                for *xyxy, conf, cls in reversed(det):
+                    x1 = int(xyxy[0].item())
+                    y1 = int(xyxy[1].item())
+                    x2 = int(xyxy[2].item())
+                    y2 = int(xyxy[3].item())
+                    cropped_element = im0[y1:y2, x1:x2]
+                    #cropped_img_path = os.path.join(save_dir, f"crop-{id}.png")
+                    cropped_img_path = os.path.join(save_dir, f"last-crop.png")
+                    cv2.imwrite(cropped_img_path, cropped_element)
+                    detected_text = detect_ocr(cropped_img_path)
+                    if detected_text in detected_text_list:
+                        detected_text = ""
+                    detected_text_list.append(detected_text)
+                    id += 1
+                    
+
                 im0 = np.zeros_like(im0) #,this will blacken the background
                 # Write results
+                i = 0
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
                         xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
@@ -129,7 +176,9 @@ def detect(save_img=False):
 
                     if save_img or view_img:  # Add bbox to image
                         label = f'{names[int(cls)]} {conf:.2f}'
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+                        plot_one_box(x=xyxy, img=im0, color=colors[int(cls)], label=label, detected_text=detected_text_list[i], line_thickness=1)
+
+                    i += 1
 
             # Print time (inference + NMS)
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')

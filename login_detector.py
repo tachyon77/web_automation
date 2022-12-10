@@ -138,7 +138,7 @@ def organize_test_dataset(root):
 root = Path('/home/mahbub/cs230/project/web_automation/dataset')
 
 # Read in the labels DataFrame with a label for each image
-labels = pd.read_csv('/home/mahbub/cs230/project/web_automation/dataset/trainLabels.csv')
+labels = pd.read_csv('/home/mahbub/cs230/project/web_automation/trainLabels.csv')
 
 print(labels)
 # Create the train/train_valid/valid folder structure
@@ -198,7 +198,7 @@ valid_dataloader = torch.utils.data.DataLoader(valid_dataset, batch_size=256, sh
 test_dataloader = torch.utils.data.DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=2*num_gpus, pin_memory=True)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-lr, weight_decay, epochs = 1e-5, 5e-4, 20
+lr, weight_decay, epochs = 1e-5, 5e-4, 15
 
 model = get_model().to(device)
 
@@ -212,3 +212,18 @@ optimizer = torch.optim.Adam([{'params':params_1x}, {'params': model.fc.paramete
 
 trained_model = train(model, train_dataloader, valid_dataloader, criterion, optimizer, None, epochs, device)
 
+
+preds = []
+
+trained_model.eval()
+with torch.no_grad():
+    for X, _ in test_dataloader:
+        X = X.to(device)
+        preds.extend(model(X).argmax(dim=1).type(torch.int32).cpu().numpy())
+
+ids = list(range(1, len(test_dataset)+1))
+ids.sort(key=lambda x: str(x))
+
+df = pd.DataFrame({'id': ids, 'label': preds})
+df['label'] = df['label'].apply(lambda x: train_dataset.classes[x])
+df.to_csv('inference.csv', index=False)

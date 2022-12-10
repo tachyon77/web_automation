@@ -1,3 +1,6 @@
+
+# Commented out to avoid accidentally overwriting dataset!
+
 import os
 
 from torch import negative, positive
@@ -15,23 +18,25 @@ def name_files(source_dir, start):
                     ordered_full_path = os.path.join(source_dir, ordered_name)
                     os.rename(cur_full_path, ordered_full_path)
                     id += 1
-                
-                
- 
-def gen_train_labels(fileName="trainLabels.csv", positive=0, negative=0):
+    return id
+
+def gen_train_labels(fileName="trainLabels.csv", positive=0, total=0):
     f = open(fileName, "w")
     
-    for i in range(positive):
-        f.write(f"{str(i+1)},yes\n")
-    
-    for j in range(negative):
-        f.write(f"{str(positive+j+1)},no\n")
+    for i in range(total):
+        if i < positive:
+            f.write(f"{str(i+1)},yes\n")
+        else:
+            f.write(f"{str(i+1)},no\n")
 
     f.close()
 
-positive = 124
-negative = 41
+#name_files("/home/mahbub/cs230/project/web_automation/dataset/original_train", 1)
+#positive = 110
+#negative = name_files("/home/mahbub/cs230/project/web_automation/dataset/yolo-output/negative", positive+1)
+#total = 383
+#gen_train_labels(fileName="trainLabels.csv", positive=positive, negative=negative)
 
-name_files("/home/mahbub/cs230/project/web_automation/dataset/origin/negative", positive+1)
 
-gen_train_labels(fileName="trainLabels.csv", positive=positive, negative=negative)
+#name_files("/home/mahbub/cs230/project/web_automation/dataset/original_test", 1)
+
